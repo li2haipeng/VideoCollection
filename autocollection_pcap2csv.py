@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 """
 @Author: Haipeng Li
 
@@ -9,10 +9,8 @@ import sys
 from pathlib import Path
 import pandas as pd
 import csv
+import os
 from scapy.all import *
-# from scapy_ssl_tls.ssl_tls import TLS
-
-
 
 
 def pcap_converter(pcap_path, echo_ip, dst):
@@ -30,19 +28,11 @@ def pcap_converter(pcap_path, echo_ip, dst):
     trace_name = pf.name[0:-5]
     p_list = rdpcap(pcap_path)
 
-    # p_list = packets[burst_ranges[0]:burst_ranges[1]]
-
-    # print(init_time)
-    # echo_df = pd.DataFrame(columns=['time', 'size', 'direction','protocol'])
     echo_df = pd.DataFrame(columns=['time', 'size', 'direction'])
     p_list.reverse()
 
-    # pp = p_list[170][TLS].fields['records'].overloaded_fields['content_type']
-    # p = p_list[208][TLS]
-
     echo_packets = []
     for p in p_list:
-        # p.show()
         try:
             p[IP].src
             p[TCP]
@@ -68,78 +58,26 @@ def pcap_converter(pcap_path, echo_ip, dst):
 
         # Update the df with correct index
         # echo_df.loc[-1] = [p.time - init_time, p.len, p[IP].src, p[IP].proto]
-        echo_df.loc[-1] = [p.time - init_time, p.len, p[IP].src]
+        echo_df.loc[-1] = [(p.time - init_time)/1000, p.len, p[IP].src]
         echo_df.index = echo_df.index + 1
 
         # Sort, so list starts in non-reverse order, save to csv
-        echo_df = echo_df.sort_index()
-        echo_df.to_csv(csv_path + trace_name + ".csv", index=False)
-
-
-def burst_detector_short(packet_path, echo_ip):
-    """
-    Detect Burst Patterns in pcap files, getting rid of need to manually enter first and last packet indices associated
-    with queries
-    Short version: For shorter packet burst detection
-    :return:
-    """
-
-    interval = 2  # Amount of time between packets that constitutes a burst
-    packets = rdpcap(packet_path)  # Read packet file
-    c = 0  # Counter that stores number of packets in burst
-    # burst_in_progress = False
-    echo_packets = []
-
-    # only echo packets
-    for p in packets:
-        try:
-            p[IP].src
-            p[TCP]
-        except:
-            continue
-        if p[IP].src.strip() == echo_ip.strip() or p[IP].dst.strip() == echo_ip.strip():
-            echo_packets.append(p)
-
-    packets = echo_packets
-
-    for i, p in enumerate(packets):
-        if i == 0:  # fist
-            continue
-        if i == len(packets) - 1:  # last
-            continue
-        prev_packet = packets[i - 1]
-        next_packet = packets[i + 1]
-        c+=1
-
-        if ((abs(p.time - prev_packet.time) < interval) and (abs(next_packet.time - p.time) > interval)):
-            # End of the current trace
-            if i < int(0.75 * len(packets)):
-                continue
-            else:
-                c += 1
-                break
-    return c
+    echo_df = echo_df.sort_index()
+    echo_df.to_csv(csv_path + trace_name + ".csv", index=False)
 
 
 def main(argv):
 
-
-    # pa_path = argv[3]
-    # pa_path =  'raw_traffic_alexa_2nd_round/'
-    # ch_path = '1'
-    # echo_ip = '10.63.1.144'
-    # dst = '1'
-
-    # p_path = 'raw_pcap/amazon_echo/' + pa_path + ch_path + '/'
-    # p_path = 'raw_pcap/amazon_echo/a/1/'
-    # print(p_path)
-    # files = os.listdir(p_path)
-    # files.sort()
-    # for f in files:
     pcap_path = argv[0]
+    # print(pcap_path)
     echo_ip = argv[1]
     dst = argv[2]
-
+    folder_list = dst.split(os.sep)
+    dst = '/home/erc/PycharmProjects/VideoCollection/csv/' + folder_list[-2] + '/' + folder_list[-1]
+    # print(dst)
+    if not os.path.isdir(dst):
+        os.makedirs(dst)
+        # pass
     try:
         ipaddress.ip_address(echo_ip)
     except ValueError:
@@ -151,36 +89,18 @@ def main(argv):
     # print('pcap file ' + pf.name + ' loaded.')
     print('Running burst detection...')
 
-    end_index = burst_detector_short(pcap_path, echo_ip)
-    ranges = (1, end_index);
-    # print('packet number ranges of {}'.format(ranges))
-    # ranges = burst_detector_short(pcap_path, echo_ip)
-    # print('Burst detection finished.')
-    # print('There are {} bursts with packet number ranges of {}'.format(len(ranges), ranges))
-    # print('Using ranges to convert pcap files to CSV trace files...')
+    pcap_converter(pcap_path, echo_ip, dst)
+    print(pf.name + 'is finished')
 
-
-    # ranges = [(9, 3229), (3324, 6525), (6554, 10117),(10140,13499),(13526,16935)]
-    if end_index > 50:
-        pcap_converter(pcap_path, echo_ip, ranges, dst)
-        print(dst + ' ' + pf.name)
-    # if end_index <= 3:
-    #     with open("stats/abc.csv",'a') as _in:
-    #         writer = csv.writer(_in)
-    #         writer.writerow(pf)
-    # print('CSV files generated.  Saved to csv/ directory.')
 
 
 if __name__ == "__main__":
 
-    path = '/home/lhp/PycharmProjects/VideoCollection/abc0829.pcap'
-    # path = 'raw_pcap/amazon_echo/b/1/Announce_Happy_Valentines_Day_??_Joey_17_.pcap'
-    ip = '10.63.7.188'
-    # r = burst_detector_short(path,ip)
-    # ranges = (0,r)
-    dst = '/home/lhp/PycharmProjects/VideoCollection'
-    pcap_converter(path, ip,  dst)
-    # main(sys.argv[1:])
-    # main()
+    # path = 'pcapFiles/Boxing_01_0_Chrome.pcap'
+    # ip = '10.63.7.178'
+    # dst = 'csv'
+    # pcap_converter(path, ip,  dst)
+    main(sys.argv[1:])
+
 
 
